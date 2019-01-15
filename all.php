@@ -35,11 +35,12 @@ if (!$path) {
 	return;
 }
 
+$cols = $num / 4;
 $allcanvas = new Imagick;
 for($i = 0; $i < 4; $i++) {
 	$canvas = new Imagick;
 	for ($j = 0; $j < $num / 4; $j++) {
-		$filepath = $path.DIRECTORY_SEPARATOR.$name.$j.'.png';
+		$filepath = $path.DIRECTORY_SEPARATOR.$name.($i*$cols+$j).'.png';
 		echo $filepath.PHP_EOL;
 		if (!file_exists($filepath)) {
 			continue;
