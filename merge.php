@@ -1,44 +1,58 @@
 <?php
 
-// step3: 合并每20张到一页
-// 扫描目录
-$files = scandir(ROOT . '/com_a');
-// 给图片分组
-$i = $j = 0;
-$group = array();
-foreach ($files as $item) {
-  if ($item === '.' || $item === '..' || strstr($item, '.db')) {
-    continue;
-  }
-  $i++;
-  $group[$j][] = $item;
-  if ($i % 20 === 0) {
-    $j++;
-  }
+$opts = new \Phalcon\Cli\Options('RPG CLI');
+$opts->add([
+    'type' => \Phalcon\Cli\Options::TYPE_STRING,
+    'name' => 'path',
+    'shortName' => 'p',
+    'required' => true
+]);
+$opts->add([
+    'type' => \Phalcon\Cli\Options::TYPE_STRING,
+    'name' => 'name',
+    'shortName' => 'n',
+    'required' => true
+]);
+$vals = $opts->parse();
+if (!$vals) {
+	return;
 }
-$total = count($group);
-// 按组拼接图片，A4纸尺寸，4x5的组合方式
-foreach ($group as $k => $v) {
-  $canvas = new Imagick;
-  $canvas->newimage(2480, 3508, 'white');
-  $canvas->setimageformat('png');
-  $i = $j = 0;
-  foreach ($v as $item) {
-    $im = new Imagick(ROOT . '/com_a/' . $item);
-    // 预留了150的左边距
-    $x = 150 + $i * 570;
-    // 130的顶边距
-    $y = 130 + $j * 661;
-    $canvas->compositeimage($im, Imagick::COMPOSITE_OVER, $x, $y);
-    // 每4张一行
-    if (($i + 1) % 4 === 0) {
-      $i = 0;
-      $j++;
-    } else {
-      $i++;
-    }
-  }
-  $canvas->writeimage(ROOT . '/merge_a/' . $k . '.png');
-  $c = $k + 1;
-  echo "Group {$c}/{$total} done.\n";
+
+$path = Phalcon\Arr::get($vals, 'path');
+$name = Phalcon\Arr::get($vals, 'name');
+
+$path = realpath($path);
+if (!$path) {
+	echo 'Path not exists.'.PHP_EOL;
+	return;
+}
+
+$dir = new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS);
+$iter = new RecursiveIteratorIterator($dir, RecursiveIteratorIterator::SELF_FIRST);
+foreach ($iter as $key => $file) {
+	if ($file->getExtension() != 'png') {
+		continue;
+	}
+	echo $file->getFilename().PHP_EOL;
+	$seq = $file->getBasename('.png');
+	$infopath = $file->getPath().DIRECTORY_SEPARATOR.$file->getFilename().'.info.txt';
+	if (!file_exists($infopath)) {
+		continue;
+	}
+	$infofileobj = new SplFileObject($infopath);
+	$infofileobj->setFlags(SplFileObject::READ_CSV);
+	$infofileobj->seek(1);
+	$info = $infofileobj->current();
+
+	$im = new Imagick($file->getPathname());
+	$x = $info[0];
+	$y = $info[1];
+	$width = $info[2];
+	$height = $info[3];
+
+	$canvas = new Imagick;
+	$canvas->newimage($width, $height, new ImagickPixel('transparent'), 'png');
+	$canvas->compositeimage($im, Imagick::COMPOSITE_OVER, $x, $y);
+	$canvas->writeimage($file->getPath() . DIRECTORY_SEPARATOR . $name.$seq.'.png');
+	unset($im);
 }
